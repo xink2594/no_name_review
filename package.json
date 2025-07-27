@@ -6,10 +6,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "pages:build": "npx @cloudflare/next-on-pages",
-    "preview": "npm run pages:build && wrangler pages dev",
-    "deploy": "npm run pages:build && wrangler pages deploy"
+    "lint": "next lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.52.0",
@@ -27,7 +24,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.2",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "wrangler": "^3.0.0"
+    "typescript": "^5"
   }
 }
