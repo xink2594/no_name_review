@@ -21,7 +21,7 @@ BEFORE UPDATE ON public.teachers
 FOR EACH ROW
 EXECUTE FUNCTION moddatetime(updated_at);
 
-COMMENT ON COLUMN public.teachers.avg_rating IS '教师的综合平均分';
+COMMENT ON COLUMN public.teachers.avg_rating IS '教师的综合平均分，支持0.5分精度';
 COMMENT ON COLUMN public.teachers.roll_call_percentage IS '认为该教师会点名的学生百分比';
 
 
@@ -63,7 +63,7 @@ CREATE TABLE public.reviews (
     teacher_id UUID NOT NULL, -- 关联到 teachers.id
     
     -- 核心评价内容
-    rating INT NOT NULL CHECK (rating >= 1 AND rating <= 5), -- 整体评分，1-5
+    rating NUMERIC(2, 1) NOT NULL CHECK (rating >= 0.5 AND rating <= 5.0 AND MOD(rating * 10, 5) = 0), -- 整体评分，0.5-5.0，步长0.5
     comment TEXT, -- 教师总体评价
     does_roll_call BOOLEAN NOT NULL, -- 是否点名
     
@@ -88,7 +88,7 @@ CREATE TABLE public.course_reviews (
     teacher_id UUID NOT NULL, -- 关联到 teachers.id
     course_id UUID NOT NULL, -- 关联到 courses.id，指明是评价哪门课
     
-    course_rating INT NOT NULL CHECK (course_rating >= 1 AND course_rating <= 5), -- 课程评分
+    course_rating NUMERIC(2, 1) NOT NULL CHECK (course_rating >= 0.5 AND course_rating <= 5.0 AND MOD(course_rating * 10, 5) = 0), -- 课程评分，0.5-5.0，步长0.5
     course_comment TEXT, -- 课程评价内容
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

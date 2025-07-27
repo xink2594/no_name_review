@@ -9,10 +9,12 @@ import { CourseTagCount } from '@/types/review'
  */
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const teacherId = params.id
+    // 正确地await动态路由参数
+    const resolvedParams = await params
+    const teacherId = resolvedParams.id
 
     if (!teacherId) {
       return NextResponse.json(
@@ -41,37 +43,44 @@ export async function GET(
       )
     }
 
-    // 2. 获取与教师关联的所有课程标签
-    const { data: courseTags, error: courseError } = await supabase
+    // 2. 分别查询教师课程关联和课程详情
+    const { data: associations, error: associationError } = await supabase
       .from('teacher_course_associations')
-      .select(`
-        association_count,
-        courses:course_id (
-          id,
-          course_name,
-          course_code
-        )
-      `)
+      .select('course_id, association_count')
       .eq('teacher_id', teacherId)
       .order('association_count', { ascending: false })
 
-    if (courseError) {
-      console.error('获取课程标签失败:', courseError)
+    if (associationError) {
+      console.error('获取教师课程关联失败:', associationError)
     }
 
-    // 3. 格式化课程标签数据
-    const formattedCourseTags: CourseTagCount[] = (courseTags || []).map(item => {
-      // 使用类型断言处理嵌套结构
-      const courses = item.courses as any;
-      return {
-        id: courses?.id || '',
-        course_name: courses?.course_name || '',
-        course_code: courses?.course_code,
-        count: item.association_count as number
-      };
-    });
+    let formattedCourseTags: CourseTagCount[] = []
 
-    // 4. 计算最近一周的评价数量
+    if (associations && associations.length > 0) {
+      // 获取所有相关课程的详情
+      const courseIds = associations.map(item => item.course_id)
+      const { data: courses, error: coursesError } = await supabase
+        .from('courses')
+        .select('id, course_name, course_code')
+        .in('id', courseIds)
+
+      if (coursesError) {
+        console.error('获取课程详情失败:', coursesError)
+      } else if (courses) {
+        // 组合数据
+        formattedCourseTags = associations.map(association => {
+          const course = courses.find(c => c.id === association.course_id)
+          return {
+            id: association.course_id,
+            course_name: course?.course_name || '未知课程',
+            course_code: course?.course_code,
+            count: association.association_count
+          }
+        }).filter(item => item.course_name !== '未知课程') // 过滤掉找不到详情的课程
+      }
+    }
+
+    // 3. 计算最近一周的评价数量
     const oneWeekAgo = new Date()
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
     
@@ -85,7 +94,7 @@ export async function GET(
       console.error('获取最近评价数量失败:', recentError)
     }
 
-    // 5. 构建返回数据
+    // 4. 构建返回数据
     const teacherInfo = {
       ...teacherData,
       course_tags: formattedCourseTags,
