@@ -10,6 +10,7 @@ export interface ReviewSubmitData {
   comment: string // 必填
   course_tags?: CourseTag[]
   course_reviews?: CourseReview[]
+  submitter_hash?: string // 可选的提交者哈希
 }
 
 export interface CourseTag {
@@ -26,6 +27,7 @@ export interface ReviewSubmitResponse {
   success: boolean
   message?: string
   error?: string
+  review_id?: string // 可选的评价ID，成功时返回
 }
 
 // 教师相关类型

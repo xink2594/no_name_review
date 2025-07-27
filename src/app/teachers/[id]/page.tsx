@@ -1,3 +1,5 @@
+export const runtime = 'edge';
+
 import { notFound } from 'next/navigation'
 import { Teacher, Review } from '@/types/review'
 import TeacherInfoCard from '@/components/TeacherInfoCard'
