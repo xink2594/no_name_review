@@ -1,7 +1,7 @@
 'use client'
 export const runtime = 'edge';
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { Teacher, TeacherSearchResponse, DepartmentResponse } from '@/types/review'
 
@@ -168,80 +168,6 @@ function SearchFilters({
   )
 }
 
-// 网站介绍组件
-function WebsiteIntroduction({ onStartSearch }: { onStartSearch: () => void }) {
-  return (
-    <div className="max-w-4xl mx-auto text-center py-16">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 lg:p-12">
-        {/* 主标题和副标题 */}
-        <div className="mb-8">
-          <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">
-            欢迎使用教师评价系统
-          </h2>
-          <p className="text-xl text-gray-600 leading-relaxed">
-            为学生提供真实、匿名的教师评价平台，帮助您做出更好的选课决策
-          </p>
-        </div>
-
-        {/* 特色功能 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">完全匿名</h3>
-            <p className="text-gray-600">
-              无需注册登录，保护您的隐私，让您可以自由表达真实想法
-            </p>
-          </div>
-
-          <div className="text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">多维评价</h3>
-            <p className="text-gray-600">
-              支持整体评价和课程评价，全方位了解教师教学情况
-            </p>
-          </div>
-
-          <div className="text-center">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">智能搜索</h3>
-            <p className="text-gray-600">
-              支持按姓名、学院筛选，多种排序方式，快速找到目标教师
-            </p>
-          </div>
-        </div>
-
-        {/* 开始使用按钮 */}
-        <div className="space-y-4">
-          <button
-            onClick={onStartSearch}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium text-lg transition-colors inline-flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            开始搜索教师
-          </button>
-          <p className="text-sm text-gray-500">
-            点击上方按钮开始使用，或直接在搜索框中输入教师姓名
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // 分页组件
 function Pagination({
   currentPage,
@@ -301,11 +227,10 @@ function Pagination({
 export default function HomePage() {
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [departments, setDepartments] = useState<string[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // 初始加载状态为true
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState('')
-  const [sortBy, setSortBy] = useState('name')
-  const [hasSearched, setHasSearched] = useState(false) // 新增：跟踪是否已搜索
+  const [sortBy, setSortBy] = useState('rating') // 默认按评分排序
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 20,
@@ -314,18 +239,23 @@ export default function HomePage() {
     hasNextPage: false,
     hasPrevPage: false
   })
+  
+  const isInitialMount = useRef(true);
 
-  // 获取学院列表
+  // 获取学院列表和初始教师列表
   useEffect(() => {
     fetchDepartments()
+    searchTeachers()
   }, [])
 
-  // 移除初始搜索，改为监听筛选和排序变化时自动搜索
+  // 监听筛选和排序变化
   useEffect(() => {
-    if (hasSearched) {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+    } else {
       searchTeachers(1)
     }
-  }, [selectedDepartment, sortBy]) // 当筛选或排序改变时自动搜索
+  }, [selectedDepartment, sortBy])
 
   const fetchDepartments = async () => {
     try {
@@ -342,7 +272,6 @@ export default function HomePage() {
 
   const searchTeachers = async (page = 1) => {
     setLoading(true)
-    setHasSearched(true) // 标记已进行搜索
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -377,36 +306,20 @@ export default function HomePage() {
     searchTeachers(1)
   }
 
-  const handleStartSearch = () => {
-    searchTeachers(1)
-  }
-
   const handlePageChange = (page: number) => {
     searchTeachers(page)
   }
 
   const handleDepartmentChange = (value: string) => {
     setSelectedDepartment(value)
-    setPagination(prev => ({ ...prev, page: 1 }))
   }
 
   const handleSortChange = (value: string) => {
     setSortBy(value)
-    setPagination(prev => ({ ...prev, page: 1 }))
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 头部 */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">教师评价系统</h1>
-            <p className="text-gray-600">搜索和查看教师评价，帮助您做出更好的选课决策</p>
-          </div>
-        </div>
-      </div>
-
       {/* 主内容 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 搜索和筛选 */}
@@ -421,53 +334,45 @@ export default function HomePage() {
           onSearch={handleSearch}
         />
 
-        {/* 根据是否已搜索显示不同内容 */}
-        {!hasSearched ? (
-          // 显示网站介绍
-          <WebsiteIntroduction onStartSearch={handleStartSearch} />
-        ) : (
-          // 显示搜索结果
-          <>
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm text-gray-600">
-                  {loading ? '搜索中...' : `找到 ${pagination.totalCount} 位教师`}
-                </div>
-              </div>
-
-              {/* 教师列表 */}
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  <p className="mt-2 text-gray-600">搜索中...</p>
-                </div>
-              ) : teachers.length === 0 ? (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">暂无搜索结果</h3>
-                  <p className="text-gray-600">试试调整搜索条件或筛选项</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {teachers.map((teacher) => (
-                    <TeacherCard key={teacher.id} teacher={teacher} />
-                  ))}
-                </div>
-              )}
+        {/* 搜索结果 */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-sm text-gray-600">
+              {loading ? '正在加载教师列表...' : `找到 ${pagination.totalCount} 位教师`}
             </div>
+          </div>
 
-            {/* 分页 */}
-            <Pagination
-              currentPage={pagination.page}
-              totalPages={pagination.totalPages}
-              hasNextPage={pagination.hasNextPage}
-              hasPrevPage={pagination.hasPrevPage}
-              onPageChange={handlePageChange}
-            />
-          </>
-        )}
+          {/* 教师列表 */}
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <p className="mt-2 text-gray-600">加载中...</p>
+            </div>
+          ) : teachers.length === 0 ? (
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">暂无教师信息</h3>
+              <p className="text-gray-600">当前条件下没有找到任何教师</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {teachers.map((teacher) => (
+                <TeacherCard key={teacher.id} teacher={teacher} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 分页 */}
+        <Pagination
+          currentPage={pagination.page}
+          totalPages={pagination.totalPages}
+          hasNextPage={pagination.hasNextPage}
+          hasPrevPage={pagination.hasPrevPage}
+          onPageChange={handlePageChange}
+        />
       </div>
     </div>
   )

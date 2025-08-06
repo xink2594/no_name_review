@@ -5,150 +5,6 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Teacher, CourseTagCount } from '@/types/review'
 
-// 防重复提交工具函数
-const SUBMIT_COOLDOWN = 300000 // 5分钟冷却时间（测试期间）
-const STORAGE_KEY = 'teacher_review_submissions'
-
-interface SubmissionRecord {
-  teacherId: string
-  timestamp: number
-  fingerprint: string
-}
-
-// 生成设备指纹
-function generateDeviceFingerprint(): string {
-  try {
-    // 确保在浏览器环境中
-    if (typeof window === 'undefined') {
-      return 'server-side'
-    }
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    let canvasFingerprint = ''
-    
-    if (ctx) {
-      ctx.textBaseline = 'top'
-      ctx.font = '14px Arial'
-      ctx.fillText('Device fingerprint canvas', 2, 2)
-      canvasFingerprint = canvas.toDataURL().slice(-20)
-    }
-    
-    const fingerprint = [
-      navigator.userAgent || '',
-      navigator.language || '',
-      screen.width || 0,
-      screen.height || 0,
-      new Date().getTimezoneOffset() || 0,
-      canvasFingerprint,
-      navigator.platform || '',
-      navigator.cookieEnabled ? '1' : '0'
-    ].join('|')
-    
-    // 简单哈希
-    let hash = 0
-    for (let i = 0; i < fingerprint.length; i++) {
-      const char = fingerprint.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // 转换为32位整数
-    }
-    
-    const result = hash.toString(36)
-    console.log('生成设备指纹:', result.slice(0, 10) + '...')
-    return result
-  } catch (error) {
-    console.error('生成设备指纹失败:', error)
-    return 'fallback-' + Date.now().toString(36)
-  }
-}
-
-// 检查是否允许提交
-function canSubmitReview(teacherId: string): { allowed: boolean; remainingTime?: number } {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const submissions: SubmissionRecord[] = stored ? JSON.parse(stored) : []
-    const currentFingerprint = generateDeviceFingerprint()
-    const now = Date.now()
-    
-    console.log('防重复提交检查:', {
-      teacherId,
-      currentFingerprint,
-      storedSubmissions: submissions.length,
-      cooldownMs: SUBMIT_COOLDOWN
-    })
-    
-    // 清理过期记录
-    const validSubmissions = submissions.filter(sub => {
-      const isValid = now - sub.timestamp < SUBMIT_COOLDOWN
-      if (!isValid) {
-        console.log('清理过期记录:', sub)
-      }
-      return isValid
-    })
-    
-    // 检查是否有相同教师和设备的最近提交
-    const recentSubmission = validSubmissions.find(sub => 
-      sub.teacherId === teacherId && sub.fingerprint === currentFingerprint
-    )
-    
-    if (recentSubmission) {
-      const remainingTime = SUBMIT_COOLDOWN - (now - recentSubmission.timestamp)
-      console.log('发现重复提交:', {
-        submission: recentSubmission,
-        remainingTime,
-        remainingMinutes: Math.ceil(remainingTime / 60000)
-      })
-      return { allowed: false, remainingTime }
-    }
-    
-    // 更新存储
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validSubmissions))
-    console.log('允许提交')
-    return { allowed: true }
-  } catch (error) {
-    console.error('检查提交权限失败:', error)
-    return { allowed: true } // 发生错误时允许提交
-  }
-}
-
-// 记录提交
-function recordSubmission(teacherId: string): void {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      console.warn('localStorage不可用，无法记录提交')
-      return
-    }
-
-    const stored = localStorage.getItem(STORAGE_KEY)
-    const submissions: SubmissionRecord[] = stored ? JSON.parse(stored) : []
-    const currentFingerprint = generateDeviceFingerprint()
-    const now = Date.now()
-    
-    // 添加新记录
-    const newRecord = {
-      teacherId,
-      timestamp: now,
-      fingerprint: currentFingerprint
-    }
-    
-    submissions.push(newRecord)
-    
-    console.log('记录新提交:', {
-      teacherId,
-      提交时间: new Date(now).toLocaleString(),
-      设备指纹: currentFingerprint,
-      冷却结束时间: new Date(now + SUBMIT_COOLDOWN).toLocaleString()
-    })
-    
-    // 清理过期记录
-    const validSubmissions = submissions.filter(sub => now - sub.timestamp < SUBMIT_COOLDOWN)
-    
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(validSubmissions))
-    console.log('当前有效提交记录数:', validSubmissions.length)
-  } catch (error) {
-    console.error('记录提交失败:', error)
-  }
-}
 
 // 星级评分组件
 function StarRating({ 
@@ -356,44 +212,44 @@ function SubmitReviewForm() {
     courseReviews: {} as Record<string, { rating: number; comment: string }>
   })
 
-  // 调试信息状态
-  const [debugInfo, setDebugInfo] = useState<{
-    fingerprint: string
-    submissions: SubmissionRecord[]
-    canSubmit: boolean
-    remainingTime?: number
-  } | null>(null)
+  // // 调试信息状态
+  // const [debugInfo, setDebugInfo] = useState<{
+  //   fingerprint: string
+  //   submissions: SubmissionRecord[]
+  //   canSubmit: boolean
+  //   remainingTime?: number
+  // } | null>(null)
 
   // 更新调试信息
-  const updateDebugInfo = () => {
-    if (!teacherId) return
+  // const updateDebugInfo = () => {
+  //   if (!teacherId) return
     
-    try {
-      const fingerprint = generateDeviceFingerprint()
-      const stored = localStorage.getItem(STORAGE_KEY)
-      const submissions: SubmissionRecord[] = stored ? JSON.parse(stored) : []
-      const submitCheck = canSubmitReview(teacherId)
+  //   try {
+  //     const fingerprint = generateDeviceFingerprint()
+  //     const stored = localStorage.getItem(STORAGE_KEY)
+  //     const submissions: SubmissionRecord[] = stored ? JSON.parse(stored) : []
+  //     const submitCheck = canSubmitReview(teacherId)
       
-      setDebugInfo({
-        fingerprint,
-        submissions: submissions.filter(sub => sub.teacherId === teacherId),
-        canSubmit: submitCheck.allowed,
-        remainingTime: submitCheck.remainingTime
-      })
-    } catch (error) {
-      console.error('更新调试信息失败:', error)
-    }
-  }
+  //     setDebugInfo({
+  //       fingerprint,
+  //       submissions: submissions.filter(sub => sub.teacherId === teacherId),
+  //       canSubmit: submitCheck.allowed,
+  //       remainingTime: submitCheck.remainingTime
+  //     })
+  //   } catch (error) {
+  //     console.error('更新调试信息失败:', error)
+  //   }
+  // }
 
-  // 初始化时更新调试信息
-  useEffect(() => {
-    if (teacherId) {
-      updateDebugInfo()
-      // 每5秒更新一次调试信息
-      const interval = setInterval(updateDebugInfo, 5000)
-      return () => clearInterval(interval)
-    }
-  }, [teacherId])
+  // // 初始化时更新调试信息
+  // useEffect(() => {
+  //   if (teacherId) {
+  //     updateDebugInfo()
+  //     // 每5秒更新一次调试信息
+  //     const interval = setInterval(updateDebugInfo, 5000)
+  //     return () => clearInterval(interval)
+  //   }
+  // }, [teacherId])
 
   // 获取教师信息
   useEffect(() => {
@@ -463,18 +319,6 @@ function SubmitReviewForm() {
 
   // 提交评价
   const handleSubmit = async () => {
-    // 防重复提交检查
-    console.log('开始提交检查，教师ID:', teacherId)
-    const submitCheck = canSubmitReview(teacherId!)
-    console.log('提交检查结果:', submitCheck)
-    
-    if (!submitCheck.allowed) {
-      const remainingSeconds = Math.ceil((submitCheck.remainingTime || 0) / 1000)
-      const remainingMinutes = Math.ceil(remainingSeconds / 60)
-      alert(`请稍后再试，您需要等待 ${remainingSeconds} 秒（约 ${remainingMinutes} 分钟）后才能再次评价该教师`)
-      return
-    }
-
     // 表单验证
     if (formData.rating === 0) {
       alert('请选择整体评分')
@@ -510,8 +354,6 @@ function SubmitReviewForm() {
 
       const result = await response.json()
       if (result.success) {
-        // 记录成功提交
-        recordSubmission(teacherId!)
         alert('评价提交成功！')
         router.push(`/teachers/${teacherId}`)
       } else {
@@ -648,7 +490,7 @@ function SubmitReviewForm() {
           {/* 步骤3: 教师文本评价 */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              3. 教师文本评价 <span className="text-gray-500">(选填)</span>
+              3. 教师文本评价 <span className="text-gray-500">(必填)</span>
             </h2>
             <textarea
               value={formData.comment}
@@ -716,7 +558,7 @@ function SubmitReviewForm() {
             </div>
           )}
 
-          {/* 调试面板 */}
+          {/* 调试面板
           {debugInfo && (
             <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 mb-6">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">防重复提交状态</h3>
@@ -752,7 +594,7 @@ function SubmitReviewForm() {
                 刷新状态
               </button>
             </div>
-          )}
+          )} */}
 
           {/* 提交按钮 */}
           <div className="flex justify-end gap-4">

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Review, CourseReviewDetail, CourseTagCount } from '@/types/review'
 
 interface ReviewsListProps {
@@ -21,7 +21,7 @@ function SimpleStarRating({ rating }: { rating: number }) {
         return (
           <div key={starIndex} className="relative w-4 h-4">
             {/* 背景星星 */}
-            <svg className="w-4 h-4 text-gray-300 fill-current" viewBox="0 0 20 20">
+          <svg className="w-4 h-4 text-gray-300 fill-current" viewBox="0 0 20 20">
               <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
             </svg>
             
@@ -30,14 +30,14 @@ function SimpleStarRating({ rating }: { rating: number }) {
               <svg className="absolute inset-0 w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07 3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
-            )}
+      )}
             
             {/* 半星 */}
             {isHalfStar && (
               <div className="absolute inset-0 overflow-hidden w-1/2">
                 <svg className="w-4 h-4 text-yellow-400 fill-current" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
               </div>
             )}
           </div>
@@ -136,27 +136,29 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
 
   const handleVote = async (voteType: 'upvote' | 'downvote') => {
     if (voting) return
+
+    // 在点击时检查是否允许进行此类型的投票
+    const checkResult = canVoteOnReview(reviewId, voteType)
+    if (!checkResult.allowed) {
+      const remainingMinutes = Math.ceil((checkResult.remainingTime || 0) / 60000)
+      alert(`您已投过此票，请在 ${remainingMinutes} 分钟后重试。`)
+      return
+    }
     
     setVoting(true)
     try {
       const response = await fetch('/api/reviews/vote', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          review_id: reviewId,
-          vote_type: voteType
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_id: reviewId, vote_type: voteType })
       })
 
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setVotes({
-            upvotes: data.upvotes,
-            downvotes: data.downvotes
-          })
+          setVotes({ upvotes: data.upvotes, downvotes: data.downvotes })
+          // 记录本次特定类型的投票
+          recordVote(reviewId, voteType)
         }
       }
     } catch (error) {
@@ -166,7 +168,6 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
     }
   }
 
-  // 计算赞同人数（点赞数减去点踩数）
   const agreeCount = votes.upvotes - votes.downvotes
 
   return (
@@ -179,7 +180,6 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
         </svg>
-        <span className="text-sm">赞同</span>
       </button>
       
       <button
@@ -190,10 +190,8 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14H5.236a2 2 0 01-1.789-2.894l3.5-7A2 2 0 018.736 3h4.018c.163 0 .326.02.485.06L17 4m-7 10v5a2 2 0 002 2h.095c.5 0 .905-.405.905-.905 0-.714.211-1.412.608-2.006L17 13V4m-7 10h2m5-10h2a2 2 0 012 2v6a2 2 0 01-2 2h-2.5" />
         </svg>
-        <span className="text-sm">不同意</span>
       </button>
 
-      {/* 显示同意人数 */}
       <div className="flex items-center gap-1 text-sm text-gray-600">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -306,6 +304,112 @@ function ReviewItem({
     </div>
   )
 }
+
+// --- START: 替换以下代码 ---
+
+const VOTE_COOLDOWN = 300000 // 5分钟冷却时间
+const VOTE_STORAGE_KEY = 'teacher_review_votes'
+
+interface VoteRecord {
+  reviewId: string
+  voteType: 'upvote' | 'downvote' // <-- 新增字段
+  timestamp: number
+  fingerprint: string
+}
+
+// 生成设备指纹 (如果之前已删除，请重新添加)
+function generateDeviceFingerprint(): string {
+  try {
+    if (typeof window === 'undefined') return 'server-side'
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    let canvasFingerprint = ''
+    
+    if (ctx) {
+      ctx.textBaseline = 'top'
+      ctx.font = '14px Arial'
+      ctx.fillText('Device fingerprint canvas', 2, 2)
+      canvasFingerprint = canvas.toDataURL().slice(-20)
+    }
+    
+    const fingerprint = [
+      navigator.userAgent || '',
+      navigator.language || '',
+      screen.width || 0,
+      screen.height || 0,
+      new Date().getTimezoneOffset() || 0,
+      canvasFingerprint,
+      navigator.platform || '',
+      navigator.cookieEnabled ? '1' : '0'
+    ].join('|')
+    
+    let hash = 0
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i)
+      hash = ((hash << 5) - hash) + char
+      hash = hash & hash
+    }
+    
+    return hash.toString(36)
+  } catch (error) {
+    console.error('生成设备指纹失败:', error)
+    return 'fallback-' + Date.now().toString(36)
+  }
+}
+
+// 检查是否允许投票 (逻辑更新)
+function canVoteOnReview(reviewId: string, voteType: 'upvote' | 'downvote'): { allowed: boolean; remainingTime?: number } {
+  try {
+    const stored = localStorage.getItem(VOTE_STORAGE_KEY)
+    const votes: VoteRecord[] = stored ? JSON.parse(stored) : []
+    const currentFingerprint = generateDeviceFingerprint()
+    const now = Date.now()
+    
+    const validVotes = votes.filter(vote => now - vote.timestamp < VOTE_COOLDOWN)
+    
+    const recentVote = validVotes.find(vote => 
+      vote.reviewId === reviewId && 
+      vote.fingerprint === currentFingerprint &&
+      vote.voteType === voteType // <-- 只检查相同类型的投票
+    )
+    
+    if (recentVote) {
+      const remainingTime = VOTE_COOLDOWN - (now - recentVote.timestamp)
+      return { allowed: false, remainingTime }
+    }
+    
+    localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify(validVotes))
+    return { allowed: true }
+  } catch (error) {
+    console.error('检查投票权限失败:', error)
+    return { allowed: true }
+  }
+}
+
+// 记录投票 (逻辑更新)
+function recordVote(reviewId: string, voteType: 'upvote' | 'downvote'): void {
+  try {
+    const stored = localStorage.getItem(VOTE_STORAGE_KEY)
+    const votes: VoteRecord[] = stored ? JSON.parse(stored) : []
+    const currentFingerprint = generateDeviceFingerprint()
+    const now = Date.now()
+    
+    votes.push({
+      reviewId,
+      voteType, // <-- 记录投票类型
+      timestamp: now,
+      fingerprint: currentFingerprint
+    })
+    
+    const validVotes = votes.filter(vote => now - vote.timestamp < VOTE_COOLDOWN)
+    localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify(validVotes))
+  } catch (error) {
+    console.error('记录投票失败:', error)
+  }
+}
+
+// --- END: 替换结束 ---
 
 export default function ReviewsList({ allReviews, teacherId, selectedCourseId: initialSelectedCourseId, courseTags = [] }: ReviewsListProps) {
   const [sortBy, setSortBy] = useState('recent')
