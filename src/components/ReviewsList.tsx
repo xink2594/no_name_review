@@ -136,14 +136,6 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
 
   const handleVote = async (voteType: 'upvote' | 'downvote') => {
     if (voting) return
-
-    // 在点击时检查是否允许进行此类型的投票
-    const checkResult = canVoteOnReview(reviewId, voteType)
-    if (!checkResult.allowed) {
-      const remainingMinutes = Math.ceil((checkResult.remainingTime || 0) / 60000)
-      alert(`您已投过此票，请在 ${remainingMinutes} 分钟后重试。`)
-      return
-    }
     
     setVoting(true)
     try {
@@ -157,8 +149,8 @@ function VoteButtons({ reviewId, upvotes, downvotes }: { reviewId: string, upvot
         const data = await response.json()
         if (data.success) {
           setVotes({ upvotes: data.upvotes, downvotes: data.downvotes })
-          // 记录本次特定类型的投票
-          recordVote(reviewId, voteType)
+        } else {
+          console.error('投票失败:', data.error)
         }
       }
     } catch (error) {
@@ -304,112 +296,6 @@ function ReviewItem({
     </div>
   )
 }
-
-// --- START: 替换以下代码 ---
-
-const VOTE_COOLDOWN = 300000 // 5分钟冷却时间
-const VOTE_STORAGE_KEY = 'teacher_review_votes'
-
-interface VoteRecord {
-  reviewId: string
-  voteType: 'upvote' | 'downvote' // <-- 新增字段
-  timestamp: number
-  fingerprint: string
-}
-
-// 生成设备指纹 (如果之前已删除，请重新添加)
-function generateDeviceFingerprint(): string {
-  try {
-    if (typeof window === 'undefined') return 'server-side'
-
-    const canvas = document.createElement('canvas')
-    const ctx = canvas.getContext('2d')
-    let canvasFingerprint = ''
-    
-    if (ctx) {
-      ctx.textBaseline = 'top'
-      ctx.font = '14px Arial'
-      ctx.fillText('Device fingerprint canvas', 2, 2)
-      canvasFingerprint = canvas.toDataURL().slice(-20)
-    }
-    
-    const fingerprint = [
-      navigator.userAgent || '',
-      navigator.language || '',
-      screen.width || 0,
-      screen.height || 0,
-      new Date().getTimezoneOffset() || 0,
-      canvasFingerprint,
-      navigator.platform || '',
-      navigator.cookieEnabled ? '1' : '0'
-    ].join('|')
-    
-    let hash = 0
-    for (let i = 0; i < fingerprint.length; i++) {
-      const char = fingerprint.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash
-    }
-    
-    return hash.toString(36)
-  } catch (error) {
-    console.error('生成设备指纹失败:', error)
-    return 'fallback-' + Date.now().toString(36)
-  }
-}
-
-// 检查是否允许投票 (逻辑更新)
-function canVoteOnReview(reviewId: string, voteType: 'upvote' | 'downvote'): { allowed: boolean; remainingTime?: number } {
-  try {
-    const stored = localStorage.getItem(VOTE_STORAGE_KEY)
-    const votes: VoteRecord[] = stored ? JSON.parse(stored) : []
-    const currentFingerprint = generateDeviceFingerprint()
-    const now = Date.now()
-    
-    const validVotes = votes.filter(vote => now - vote.timestamp < VOTE_COOLDOWN)
-    
-    const recentVote = validVotes.find(vote => 
-      vote.reviewId === reviewId && 
-      vote.fingerprint === currentFingerprint &&
-      vote.voteType === voteType // <-- 只检查相同类型的投票
-    )
-    
-    if (recentVote) {
-      const remainingTime = VOTE_COOLDOWN - (now - recentVote.timestamp)
-      return { allowed: false, remainingTime }
-    }
-    
-    localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify(validVotes))
-    return { allowed: true }
-  } catch (error) {
-    console.error('检查投票权限失败:', error)
-    return { allowed: true }
-  }
-}
-
-// 记录投票 (逻辑更新)
-function recordVote(reviewId: string, voteType: 'upvote' | 'downvote'): void {
-  try {
-    const stored = localStorage.getItem(VOTE_STORAGE_KEY)
-    const votes: VoteRecord[] = stored ? JSON.parse(stored) : []
-    const currentFingerprint = generateDeviceFingerprint()
-    const now = Date.now()
-    
-    votes.push({
-      reviewId,
-      voteType, // <-- 记录投票类型
-      timestamp: now,
-      fingerprint: currentFingerprint
-    })
-    
-    const validVotes = votes.filter(vote => now - vote.timestamp < VOTE_COOLDOWN)
-    localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify(validVotes))
-  } catch (error) {
-    console.error('记录投票失败:', error)
-  }
-}
-
-// --- END: 替换结束 ---
 
 export default function ReviewsList({ allReviews, teacherId, selectedCourseId: initialSelectedCourseId, courseTags = [] }: ReviewsListProps) {
   const [sortBy, setSortBy] = useState('recent')

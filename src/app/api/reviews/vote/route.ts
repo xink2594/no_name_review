@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 
 /**
  * 评价投票API - 处理赞和踩操作
+ * 使用数据库事务和原子操作确保数据一致性
  */
 export async function POST(request: Request) {
   try {
@@ -38,54 +39,29 @@ export async function POST(request: Request) {
       }
     )
     
-    // 获取评价当前状态
-    const { data: review, error: fetchError } = await supabaseAdmin
-      .from('reviews')
-      .select('upvotes, downvotes')
-      .eq('id', review_id)
-      .single()
+    // 使用数据库函数进行原子操作处理投票
+    const { data: updatedReview, error } = await supabaseAdmin.rpc(
+      'atomic_vote_operation',
+      { 
+        p_review_id: review_id, 
+        p_vote_type: vote_type 
+      }
+    )
     
-    if (fetchError) {
-      return NextResponse.json(
-        { success: false, error: '评价不存在或获取失败' },
-        { status: 404 }
-      )
-    }
-    
-    // 更新投票计数
-    let updateData = {}
-    if (vote_type === 'upvote') {
-      updateData = { upvotes: (review.upvotes || 0) + 1 }
-    } else {
-      updateData = { downvotes: (review.downvotes || 0) + 1 }
-    }
-    
-    // 执行更新
-    const { error: updateError } = await supabaseAdmin
-      .from('reviews')
-      .update(updateData)
-      .eq('id', review_id)
-    
-    if (updateError) {
+    if (error) {
+      console.error('投票操作失败:', error)
       return NextResponse.json(
         { success: false, error: '投票失败' },
         { status: 500 }
       )
     }
     
-    // 获取更新后的数据
-    const { data: updatedReview } = await supabaseAdmin
-      .from('reviews')
-      .select('upvotes, downvotes')
-      .eq('id', review_id)
-      .single()
-    
     return NextResponse.json(
       { 
         success: true, 
         message: vote_type === 'upvote' ? '点赞成功' : '踩评论成功',
-        upvotes: updatedReview?.upvotes || review.upvotes + (vote_type === 'upvote' ? 1 : 0),
-        downvotes: updatedReview?.downvotes || review.downvotes + (vote_type === 'downvote' ? 1 : 0)
+        upvotes: updatedReview[0].upvotes,
+        downvotes: updatedReview[0].downvotes
       },
       { status: 200 }
     )
@@ -97,4 +73,4 @@ export async function POST(request: Request) {
       { status: 500 }
     )
   }
-} 
+}
