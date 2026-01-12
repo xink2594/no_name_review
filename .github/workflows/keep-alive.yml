@@ -1,0 +1,20 @@
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # 每天 UTC 时间 5:00 运行一次
+    # 你可以根据 https://crontab.guru/ 网站的说明自定义时间
+    - cron: '0 5 * * *'
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send keep-alive request to Supabase
+        run: |
+          curl -X GET \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/teachers?select=*" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Prefer: count=exact" \
+            --head # --head 标志让 curl 只获取响应头，不下载响应体，非常轻量
